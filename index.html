@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Disease Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Plant Disease AI</h1>
+            <p>Upload a clear photo of a plant leaf to detect potential diseases.</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <form id="uploadForm" class="upload-box" enctype="multipart/form-data">
+                    <input type="file" id="fileInput" name="file" accept="image/*" class="file-input" hidden>
+                    <label for="fileInput" class="upload-label">
+                        <div class="upload-icon">🍃</div>
+                        <span id="fileName">Click to browse or drag image here</span>
+                        <span class="upload-hint">Supports JPG, PNG</span>
+                    </label>
+                    <button type="submit" id="analyzeBtn" class="btn primary-btn" disabled>Analyze Image</button>
+                </form>
+            </div>
+
+            <!-- Image Preview Section -->
+            <div id="previewContainer" class="preview-container hidden">
+                <img id="imagePreview" alt="Leaf Preview">
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="loader hidden">
+                <div class="spinner"></div>
+                <p>AI is analyzing...</p>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultContainer" class="result-container hidden">
+                <h2>Analysis Result</h2>
+                
+                <div id="mockWarning" class="alert warning hidden"></div>
+                
+                <div class="result-card">
+                    <div class="metric">
+                        <span class="label">Detected Disease</span>
+                        <strong id="diseaseName" class="value text-primary">-</strong>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Confidence Score</span>
+                        <strong id="confidenceScore" class="value">-</strong>
+                    </div>
+                </div>
+                
+                <div id="errorAlert" class="alert error hidden"></div>
+                
+                <button id="resetBtn" class="btn secondary-btn">Try Another Image</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewContainer = document.getElementById('previewContainer');
+        const loader = document.getElementById('loader');
+        const resultContainer = document.getElementById('resultContainer');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Allow previewing the file
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = file.name;
+                analyzeBtn.disabled = false;
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imagePreview.src = event.target.result;
+                    previewContainer.classList.remove('hidden');
+                    
+                    // Hide results if re-uploading
+                    resultContainer.classList.add('hidden');
+                }
+                reader.readAsDataURL(file);
+            } else {
+                analyzeBtn.disabled = true;
+                fileName.textContent = "Click to browse or drag image here";
+                previewContainer.classList.add('hidden');
+            }
+        });
+
+        // Form Submit
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // UI State updates
+            analyzeBtn.disabled = true;
+            loader.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                loader.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                
+                if(data.error) {
+                    document.getElementById('errorAlert').textContent = data.error;
+                    document.getElementById('errorAlert').classList.remove('hidden');
+                    document.querySelector('.result-card').style.display = 'none';
+                    return;
+                }
+
+                // Show data
+                document.getElementById('errorAlert').classList.add('hidden');
+                document.querySelector('.result-card').style.display = 'flex';
+                
+                document.getElementById('diseaseName').textContent = data.disease;
+                document.getElementById('confidenceScore').textContent = data.confidence;
+                
+                // Show mock warning if applicable
+                const mockWarning = document.getElementById('mockWarning');
+                if (data.mock_mode) {
+                    mockWarning.textContent = "⚠️ " + data.message;
+                    mockWarning.classList.remove('hidden');
+                } else {
+                    mockWarning.classList.add('hidden');
+                }
+                
+            } catch (error) {
+                loader.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                document.getElementById('errorAlert').textContent = "Failed to communicate with server.";
+                document.getElementById('errorAlert').classList.remove('hidden');
+            } finally {
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            fileName.textContent = "Click to browse or drag image here";
+            analyzeBtn.disabled = true;
+            previewContainer.classList.add('hidden');
+            resultContainer.classList.add('hidden');
+        });
+
+    </script>
+</body>
+</html>
